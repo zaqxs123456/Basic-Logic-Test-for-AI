@@ -1,0 +1,44 @@
+[
+    {
+        "question": "./questions/q1.md",
+        "answer": "./answers/a1.md",
+        "human_difficulty": "4",
+        "ai_difficulty": "1",
+        "short_name": "Lottery System"
+    },
+    {
+        "question": "./questions/q2.md",
+        "answer": "./answers/a2.md",
+        "human_difficulty": "4",
+        "ai_difficulty": "2",
+        "short_name": "Zoo Animal"
+    },
+    {
+        "question": "./questions/q3.md",
+        "answer": "./answers/a3.md",
+        "human_difficulty": "2",
+        "ai_difficulty": "3",
+        "short_name": "Revenue Drop"
+    },
+    {
+        "question": "./questions/q4.md",
+        "answer": "./answers/a4.md",
+        "human_difficulty": "3",
+        "ai_difficulty": "4",
+        "short_name": "Blood Pressure"
+    },
+    {
+        "question": "./questions/q5.md",
+        "answer": "./answers/a5.md",
+        "human_difficulty": "5",
+        "ai_difficulty": "4",
+        "short_name": "Philosophers Logic"
+    },
+    {
+        "question": "./questions/q6.md",
+        "answer": "./answers/a6.md",
+        "human_difficulty": "2",
+        "ai_difficulty": "5",
+        "short_name": "Number Sequence"
+    }
+]
