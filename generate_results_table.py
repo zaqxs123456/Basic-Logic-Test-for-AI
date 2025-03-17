@@ -81,9 +81,13 @@ def load_result(file_path):
     with open(file_path, "r") as f:
         return json.load(f)
 
-def format_model_name(model_name):
+def format_model_name(model_name, metadata=None):
     """Format model name for display"""
-    # Capitalize and remove version numbers if present
+    # Check if there's a custom display name in metadata
+    if metadata and metadata.get("display_name"):
+        return metadata.get("display_name")
+        
+    # Otherwise use the default formatting
     display_name = model_name.split(':')[0].capitalize()
     return display_name
 
@@ -96,6 +100,7 @@ def create_table_header(questions):
     header += "## How to Read This Table\n\n"
     header += "- **Question results:** ✅ 5/5(4) means a correct answer with score 5 out of 5, taking 4 attempts to get it right\n"
     header += "- **Question results:** ❌ 0/5(3) means an incorrect answer with score 0, despite 3 attempts\n"
+    header += "- **Question results:** ❌ 0/5(5)⏱️ means the last attempt timed out\n"
     header += "- **Overall results:** 50.0% (3.7 tries) means the model answered 50% of questions correctly, with an average of 3.7 attempts per question\n\n"
     
     # Create header row with links to questions and answers
@@ -124,6 +129,7 @@ def format_question_result(q_result, q_index):
     assessment = q_result.get("assessment", "N/A").lower()
     best_score = q_result.get("best_score", 0)
     attempts = q_result.get("attempts", 1)
+    is_timeout = q_result.get("timeout", False)
     
     # Add emoji based on assessment - use lowercase assessment
     emoji = "✅" if assessment == "correct" else "❌"
@@ -131,7 +137,10 @@ def format_question_result(q_result, q_index):
     # Add attempt information if multiple attempts were made
     attempts_info = f"({attempts})" if attempts > 1 else ""
     
-    return f"{emoji} {best_score}/5{attempts_info} | "
+    # Add timeout indicator
+    timeout_indicator = "⏱️" if is_timeout else ""
+    
+    return f"{emoji} {best_score}/5{attempts_info}{timeout_indicator} | "
 
 def create_model_rows(model_scores, questions, latest_results):
     """Create table rows for each model's performance"""
@@ -142,8 +151,8 @@ def create_model_rows(model_scores, questions, latest_results):
         metadata = result.get("metadata", {})
         results = result.get("results", [])
         
-        # Format model name
-        display_model = format_model_name(model)
+        # Format model name, passing metadata to use display name if available
+        display_model = format_model_name(model, metadata)
         
         # Start the row with the model name
         row = f"| {display_model} | "

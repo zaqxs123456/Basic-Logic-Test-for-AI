@@ -5,6 +5,23 @@ A framework for testing logical reasoning capabilities of various LLM models usi
 ## AI Model Logical Reasoning Test Results
 
 <!-- BEGIN_RESULTS_TABLE -->
+
+| Model | [Lottery System](questions/q1.md)<br>([Answer](answers/a1.md)) | [Zoo Animal](questions/q2.md)<br>([Answer](answers/a2.md)) | [Revenue Drop](questions/q3.md)<br>([Answer](answers/a3.md)) | [Blood Pressure](questions/q4.md)<br>([Answer](answers/a4.md)) | [Philosophers Logic](questions/q5.md)<br>([Answer](answers/a5.md)) | [Number Sequence](questions/q6.md)<br>([Answer](answers/a6.md)) | Total | % |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| Gemma3 | ✅ 5/5 | ✅ 5/5(5) | ✅ 5/5(2) | ❌ 0/5(5) | ❌ 0/5(5) | ❌ 0/5(5) | 15/30 | 50.0% (3.8 tries) |
+| Phi4 | ✅ 5/5 | ✅ 5/5 | ❌ 0/5(5) | ❌ 0/5(5) | ❌ 0/5(5) | ❌ 0/5(5) | 10/30 | 33.3% (3.7 tries) |
+| Qwq | ❌ 0/5(5) | ✅ 5/5 | ❌ 0/5(5) | ✅ 4/5(2) | ❌ 0/5(5) | ❌ 0/5(5) | 9/30 | 33.3% (3.8 tries) |
+
+## Question Performance
+
+| Question | Human | AI | Success Rate | Avg Attempts |
+| --- | :---: | :---: | :---: | :---: |
+| Lottery System | ⭐⭐⭐⭐ | ⭐ | 66.7% | 2.3 |
+| Zoo Animal | ⭐⭐⭐⭐ | ⭐⭐ | 100.0% | 2.3 |
+| Revenue Drop | ⭐⭐ | ⭐⭐⭐ | 33.3% | 4.0 |
+| Blood Pressure | ⭐⭐⭐ | ⭐⭐⭐⭐ | 33.3% | 4.0 |
+| Philosophers Logic | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | 0.0% | 5.0 |
+| Number Sequence | ⭐⭐ | ⭐⭐⭐⭐⭐ | 0.0% | 5.0 |
 <!-- END_RESULTS_TABLE -->
 
 ## All Questions
