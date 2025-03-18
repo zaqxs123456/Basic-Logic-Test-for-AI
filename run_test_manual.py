@@ -3,6 +3,7 @@ import json
 import os
 import time
 import sys
+import subprocess
 
 # Import functions from run_test.py
 from run_test import (
@@ -13,9 +14,7 @@ from run_test import (
     get_difficulty_stars,
     parse_evaluation,
     check_model_exists,
-    pull_model_with_progress,
-    generate_table,
-    update_readme_with_table
+    pull_model_with_progress
 )
 
 def display_question(question_content, short_name, q_index, total_questions, 
@@ -41,7 +40,7 @@ def get_manual_answer(attempt_num=1):
     """Get manual answer from user input"""
     print(f"\n📝 {f'Attempt {attempt_num}/5' if attempt_num > 1 else 'First attempt'}")
     print("\n🔍 Please paste the model's response below.")
-    print("Type 'END' on a new line to finish, or 'SKIP' to skip this attempt:")
+    print("Type 'END' on a new line to finish, or 'SKIP' to skip this question:")
     print("-"*40)
     
     lines = []
@@ -157,15 +156,25 @@ def handle_question_manual(model_name, evaluator1_model, evaluator2_model, quest
             attempt
         )
         
-        # Skip checking if the attempt was skipped
+        # Skip the entire question if the attempt was skipped
         if result["answer"] == "[SKIPPED]":
-            if attempt == 1:
-                print("⚠️ First attempt skipped - continuing to next question")
-                attempts = 1
-                break
-            else:
-                print("⚠️ Attempt skipped - continuing to next attempt")
-                continue
+            print("⏭️ Question skipped - moving to next question")
+            attempts = 1
+            # Return a basic result for the skipped question
+            return {
+                "question_index": q_index,
+                "question_path": question_path,
+                "answer_path": answer_path,
+                "short_name": short_name,
+                "test_subject_answers": ["[SKIPPED]"],
+                "evaluations": ["[SKIPPED - No evaluation performed]"],
+                "scores": [0],
+                "attempts": 1,
+                "attempts_until_success": None,
+                "assessment": "skipped",  # Mark as skipped rather than wrong
+                "best_score": 0,
+                "timeout": False
+            }
         
         # Record results
         test_subject_answers.append(result["answer"])
@@ -286,6 +295,7 @@ def run_test_manual(model_name, evaluator1_model, evaluator2_model=None, max_att
     best_scores = [r["best_score"] for r in results]
     total_score = sum(best_scores)
     max_score = 5 * processed_count
+    skipped_count = sum(1 for r in results if r.get("assessment") == "skipped")
     correct_count = sum(1 for r in results if r["assessment"] == "correct")
     total_attempts = sum(r["attempts"] for r in results)
     
@@ -296,6 +306,8 @@ def run_test_manual(model_name, evaluator1_model, evaluator2_model=None, max_att
     print(f"\n{'='*80}")
     print(f"\n🎯 Final Results for {model_name} (Best of {max_attempts} attempts):")
     print(f"📊 Questions processed: {processed_count}/{total_questions}")
+    if skipped_count > 0:
+        print(f"⏭️ Questions skipped: {skipped_count}/{processed_count}")
     print(f"📊 Correct answers: {correct_count}/{processed_count} ({correct_percentage:.1f}%)")
     print(f"🏅 Final Score: {total_score}/{max_score} ({percentage:.1f}%) {get_difficulty_stars(round(percentage/20))}")
     print(f"🔄 Total attempts: {total_attempts} (avg: {avg_attempts:.1f} per question)")
@@ -379,8 +391,8 @@ def save_results(model_name, evaluator1_model, evaluator2_model, results):
 def main():
     parser = argparse.ArgumentParser(description='Run Basic Logic Test for AI in Manual Mode')
     parser.add_argument('--model-name', '-m', required=True, help='Name of the model being tested')
-    parser.add_argument('--evaluator', '-e', default='deepseek-r1-jp:14b-8k', 
-                      help='Primary evaluator model (default: deepseek-r1-jp:14b-8k)')
+    parser.add_argument('--evaluator', '-e', default='deepseek-r1:14b', 
+                      help='Primary evaluator model (default: deepseek-r1:14b)')
     parser.add_argument('--evaluator2', '-e2', default='mistral-small',
                       help='Second evaluator model for consensus (default: mistral-small)')
     parser.add_argument('--attempts', '-a', type=int, default=5, 
@@ -422,24 +434,21 @@ def main():
         print(f"{'='*80}")
         
         # Generate results table if requested
-        if not args.no_table and generate_table is not None:
+        if not args.no_table:
             try:
                 print("\n📊 Generating updated results table...")
-                table_content = generate_table()
+                # Run the generate_results_table.py script as a subprocess
+                result = subprocess.run([sys.executable, "generate_results_table.py"], 
+                                        capture_output=True, text=True, check=False)
                 
-                if table_content:
-                    # Save and update table
-                    with open("results_table.md", "w") as f:
-                        f.write(table_content)
-                    print("✅ Results table saved to results_table.md")
-                    
-                    if update_readme_with_table:
-                        if update_readme_with_table(table_content):
-                            print("✅ README.md updated with latest results")
-                        else:
-                            print("❌ Failed to update README.md")
+                if result.returncode == 0:
+                    print("✅ Results table generated successfully")
+                    for line in result.stdout.splitlines():
+                        if line.startswith("✅"):
+                            print(line)
                 else:
                     print("❌ Failed to generate results table")
+                    print(f"Error: {result.stderr}")
             except Exception as e:
                 print(f"❌ Error generating results table: {e}")
         

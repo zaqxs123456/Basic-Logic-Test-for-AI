@@ -1,6 +1,6 @@
 # AI Model Logical Reasoning Test Results
 
-Generated on: 2025-03-18 06:48:04
+Generated on: 2025-03-18 14:23:30
 
 ## How to Read This Table
 
@@ -16,6 +16,7 @@ Generated on: 2025-03-18 06:48:04
 | gemma3:27b | ✅ 5/5 | ✅ 5/5 | ✅ 4/5 | ❌ 0/5(5) | ❌ 0/5(5) | ❌ 0/5(5) | 14/30 | 50.0% (3.0 tries) |
 | qwq | ✅ 5/5 | ✅ 5/5 | ✅ 4/5(2) | ❌ 0/5(5) | ❌ 0/5⏱️ | ❌ 0/5⏱️ | 14/30 | 50.0% (1.8 tries) |
 | dolphin3 | ✅ 4/5 | ✅ 5/5 | ❌ 0/5(5) | ❌ 0/5(5) | ✅ 5/5 | ❌ 0/5(5) | 14/30 | 50.0% (3.0 tries) |
+| gemini 2.0 flash | ✅ 5/5 | ❌ 0/5 | ✅ 4/5 | ✅ 4/5 | ❌ 0/5 | ❌ 0/5 | 13/30 | 50.0% (1.0 tries) |
 | phi4 | ✅ 5/5 | ✅ 5/5 | ❌ 0/5(5) | ❌ 0/5(5) | ❌ 3/5(5) | ❌ 0/5(5) | 13/30 | 33.3% (3.7 tries) |
 | deepseek-r1-jp:32b-8k | ✅ 5/5 | ✅ 5/5 | ❌ 0/5(5)⏱️ | ❌ 0/5⏱️ | ❌ 0/5⏱️ | ❌ 0/5⏱️ | 10/30 | 33.3% (1.7 tries) |
 | deepscaler | ✅ 3/5 | ✅ 5/5(3) | ❌ 0/5(5) | ❌ 0/5(5) | ❌ 0/5(2)⏱️ | ❌ 0/5(5) | 8/30 | 33.3% (3.5 tries) |
@@ -25,8 +26,8 @@ Generated on: 2025-03-18 06:48:04
 | Question | Difficulty for Humans | Difficulty for AI | Success Rate | Avg Attempts |
 | --- | :---: | :---: | :---: | :---: |
 | Lottery System | ⭐⭐⭐⭐☆ | ⭐☆☆☆☆ | 100.0% | 1.0 |
-| Zoo Animal | ⭐⭐⭐⭐☆ | ⭐⭐☆☆☆ | 100.0% | 1.2 |
-| Revenue Drop | ⭐⭐☆☆☆ | ⭐⭐⭐☆☆ | 37.5% | 4.0 |
-| Blood Pressure | ⭐⭐⭐☆☆ | ⭐⭐⭐⭐☆ | 0.0% | 4.5 |
-| Philosophers Logic | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐☆ | 25.0% | 3.0 |
-| Number Sequence | ⭐⭐☆☆☆ | ⭐⭐⭐⭐⭐ | 12.5% | 3.5 |
+| Zoo Animal | ⭐⭐⭐⭐☆ | ⭐⭐☆☆☆ | 88.9% | 1.2 |
+| Revenue Drop | ⭐⭐☆☆☆ | ⭐⭐⭐☆☆ | 44.4% | 3.7 |
+| Blood Pressure | ⭐⭐⭐☆☆ | ⭐⭐⭐⭐☆ | 11.1% | 4.1 |
+| Philosophers Logic | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐☆ | 22.2% | 2.8 |
+| Number Sequence | ⭐⭐☆☆☆ | ⭐⭐⭐⭐⭐ | 11.1% | 3.2 |

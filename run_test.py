@@ -9,6 +9,7 @@ import signal
 from contextlib import contextmanager
 import threading
 import re
+import subprocess
 
 # Import table generation functionality
 try:
@@ -583,10 +584,85 @@ def run_test(test_model, evaluator1_model, evaluator2_model=None, max_attempts=5
     
     return results, metadata, model_name
 
+def get_model_link(model_name):
+    """Ask user for a link or source to pull a missing model"""
+    print(f"\n⚠️ Model '{model_name}' not found in Ollama.")
+    print(f"Please provide a source to pull the model from (or enter 'skip' to exit):")
+    print("Examples:")
+    print("  - llama3 (pull from default library)")
+    print("  - llama3:8b (specific size from default library)")
+    print("  - https://huggingface.co/mistralai/Mistral-7B-v0.1 (HuggingFace URL)")
+    print("  - skip (exit program)")
+    
+    while True:
+        source = input(f"Source for {model_name}: ").strip()
+        
+        if not source:
+            print("Please enter a valid source or 'skip'.")
+            continue
+            
+        if source.lower() == 'skip':
+            print(f"Skipping model {model_name}. Exiting program.")
+            sys.exit(1)
+            
+        return source
+
+def check_and_prepare_models(test_models, evaluator1, evaluator2=None):
+    """Check if all required models exist and ask for links if they don't"""
+    all_models = test_models.copy()
+    if evaluator1:
+        all_models.append(evaluator1)
+    if evaluator2:
+        all_models.append(evaluator2)
+    
+    # First check which models are missing
+    missing_models = {}
+    for model in all_models:
+        if not check_model_exists(model):
+            missing_models[model] = None
+    
+    # If any models are missing, ask for links
+    if missing_models:
+        print(f"\n🔍 Found {len(missing_models)} missing model(s) that need to be pulled:")
+        for model in missing_models:
+            print(f"  - {model}")
+        
+        print("\nYou need to provide sources for these models before testing can begin.")
+        
+        # Ask for links for each missing model
+        for model in missing_models:
+            source = get_model_link(model)
+            missing_models[model] = source
+        
+        # Try to pull each missing model
+        for model, source in missing_models.items():
+            try:
+                if source == model:
+                    # If source is same as model name, use default pull
+                    print(f"Pulling {model} from default library...")
+                    pull_model_with_progress(model)
+                else:
+                    # Otherwise pull from provided source
+                    print(f"Pulling {model} from {source}...")
+                    pull_model_with_progress(source)
+                    
+                    # If model name is different from source, we need to tag it
+                    if model != source and ":" not in source and "http" not in source:
+                        print(f"Tagging {source} as {model}...")
+                        subprocess.run(["ollama", "cp", source, model], check=True)
+            except Exception as e:
+                print(f"❌ Failed to pull model {model}: {str(e)}")
+                print("Cannot proceed with testing without required models. Exiting.")
+                sys.exit(1)
+    else:
+        print("✅ All required models are already available in Ollama.")
+    
+    return True
+
 def main():
     parser = argparse.ArgumentParser(description='Run Basic Logic Test for AI')
     parser.add_argument('test_models', nargs='+', help='One or more models to test (e.g. llama3 gemma3 phi3)')
-    parser.add_argument('--evaluator', '-e', default='deepseek-r1-jp:14b-8k', help='Primary evaluator model (default: deepseek-r1-jp:14b-8k)')
+    parser.add_argument('--evaluator', '-e', default='deepseek-r1:14b', help='Primary evaluator model (default: deepseek-r1:14b)')
     parser.add_argument('--evaluator2', '-e2', default="mistral-small",help='Second evaluator model for consensus (default: mistral-small)')
     parser.add_argument('--no-table', '-n', action='store_true', help='Skip generating results table')
     parser.add_argument('--max-attempts', '-m', type=int, default=5, help='Maximum attempts per question (default: 5)')
@@ -597,18 +673,9 @@ def main():
     parser.add_argument('--thinking-end-tag', '-te', help='Tag marking the end of thinking section to remove')
     args = parser.parse_args()
     
-    # Check if primary evaluator model exists, pull if not
-    if not check_model_exists(args.evaluator):
-        pull_model_with_progress(args.evaluator)
-    else:
-        print(f"✓ {args.evaluator} model already exists")
-    
-    # Check if secondary evaluator model exists (if provided), pull if not
-    if args.evaluator2:
-        if not check_model_exists(args.evaluator2):
-            pull_model_with_progress(args.evaluator2)
-        else:
-            print(f"✓ {args.evaluator2} model already exists")
+    print("🔍 Checking for required models...")
+    # Check for all models upfront and ask for links if any are missing
+    check_and_prepare_models(args.test_models, args.evaluator, args.evaluator2)
     
     # Process each test model sequentially
     for test_model in args.test_models:
@@ -624,12 +691,6 @@ def main():
         if args.thinking_start_tag and args.thinking_end_tag:
             print(f"🧠 Will strip thinking sections between '{args.thinking_start_tag}' and '{args.thinking_end_tag}'")
         print(f"{'='*80}\n")
-        
-        # Check if current test model exists, pull if not
-        if not check_model_exists(test_model):
-            pull_model_with_progress(test_model)
-        else:
-            print(f"✓ {test_model} model already exists")
         
         # Run test for current model (pass all parameters)
         results, metadata, model_name = run_test(
@@ -668,25 +729,21 @@ def main():
         print(f"{'='*80}")
     
     # Generate results table after all tests are complete
-    if not args.no_table and generate_table is not None:
+    if not args.no_table:
         try:
             print("\n📊 Generating updated results table...")
-            table_content = generate_table()
+            # Run the generate_results_table.py script as a subprocess
+            result = subprocess.run([sys.executable, "generate_results_table.py"], 
+                                    capture_output=True, text=True, check=False)
             
-            if table_content:
-                # Save to results_table.md
-                with open("results_table.md", "w") as f:
-                    f.write(table_content)
-                print("✅ Results table saved to results_table.md")
-                
-                # Update README with table content
-                if update_readme_with_table:
-                    if update_readme_with_table(table_content):
-                        print("✅ README.md updated with latest results")
-                    else:
-                        print("❌ Failed to update README.md")
+            if result.returncode == 0:
+                print("✅ Results table generated successfully")
+                for line in result.stdout.splitlines():
+                    if line.startswith("✅"):
+                        print(line)
             else:
                 print("❌ Failed to generate results table")
+                print(f"Error: {result.stderr}")
         except Exception as e:
             print(f"❌ Error generating results table: {e}")
     
