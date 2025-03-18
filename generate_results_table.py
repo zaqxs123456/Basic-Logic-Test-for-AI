@@ -205,15 +205,20 @@ def calculate_question_statistics(latest_results):
 
 def create_performance_table(questions, question_stats):
     """Create a table showing performance statistics for each question"""
-    table = "\n## Question Performance\n\n"
-    table += "| Question | Human | AI | Success Rate | Avg Attempts |\n"
+    table = "\n### Question Performance\n\n"
+    table += "| Question | Difficulty for Humans | Difficulty for AI | Success Rate | Avg Attempts |\n"
     table += "| --- | :---: | :---: | :---: | :---: |\n"
     
     for q in questions:
         q_index = questions.index(q) + 1
         short_name = q.get("short_name", f"Q{q_index}")
-        human_difficulty = "⭐" * int(q["human_difficulty"])
-        ai_difficulty = "⭐" * int(q["ai_difficulty"])
+        
+        # Create 5 stars total with filled and empty stars
+        human_difficulty_val = int(q["human_difficulty"])
+        human_difficulty = "⭐" * human_difficulty_val + "☆" * (5 - human_difficulty_val)
+        
+        ai_difficulty_val = int(q["ai_difficulty"])
+        ai_difficulty = "⭐" * ai_difficulty_val + "☆" * (5 - ai_difficulty_val)
         
         stats = question_stats.get(q_index, {"attempts": [1], "successes": 0, "total": 0})
         success_rate = (stats["successes"] / stats["total"] * 100) if stats["total"] > 0 else 0

@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 from tqdm import tqdm
-from ollama import generate, ps, pull
+from ollama import generate, list, pull
 import time
 import sys
 import signal
@@ -69,7 +69,7 @@ def time_limit(seconds):
 
 def check_model_exists(model_name):
     """Check if a model exists in Ollama"""
-    response = ps()
+    response = list()
     for model in response.models:
         if model.model.startswith(model_name):
             return True
@@ -161,19 +161,24 @@ Model Answer:
 AI's Answer:
 {user_answer}
 
-First determine if the answer is CORRECT or WRONG:
-- WRONG (score 0): The answer is fundamentally incorrect or misses the point
-- CORRECT (score 1-5): The answer has the right idea
+First determine if the answer is Correct or Wrong:
+- Wrong (score 0): The answer is fundamentally incorrect or misses the point
+- Correct (score 1-5): The answer has the right idea
 
 For scoring:
-- If WRONG, the score must be 0
-- If CORRECT, score from 1-5 based on quality and completeness
-- For multiple choice questions, only use scores 0 (WRONG) or 5 (CORRECT)
+- If Wrong, the score must be 0
+- If Correct, score from 1-5 based on quality and completeness
+- For multiple choice questions, only use scores 0 (Wrong) or 5 (Correct)
 
-Return your response in this format:
-Assessment: [CORRECT or WRONG]
-Score: [0-5]
-Explanation: [Your brief explanation]
+Return your response in this exact JSON format:
+{{
+  "explanation": "Your brief explanation here",
+  "mc_chosen_by_the_LLM_model": "A/B/C/D",  # Only include this for multiple choice questions, options: A, B, C, D.
+  "assessment": "Correct or Wrong", # only these two options are allowed, no typos or extra characters. If is multiple choice question, make sure the LLM model's choice is same with the model answer if you want to mark it as correct.
+  "score": 0-5 (just the number)
+}}
+
+Do not include any other text, Markdown formatting, or code blocks.
 """
     
     # Use ask_question with is_evaluator=True to bypass timeout
@@ -193,23 +198,63 @@ def parse_evaluation(evaluation):
     score = 0  # Default
     
     try:
+        # Try parsing as JSON first
+        try:
+            import json
+            # Check if this might be a JSON response
+            if '{' in evaluation and '}' in evaluation:
+                # Extract potential JSON section (between first { and last })
+                json_section = evaluation[evaluation.find('{'):evaluation.rfind('}')+1]
+                eval_data = json.loads(json_section)
+                
+                # Extract assessment and score from JSON
+                if 'assessment' in eval_data:
+                    # Extract only alphabet characters and lowercase
+                    raw_assessment = ''.join(c for c in eval_data['assessment'] if c.isalpha()).lower()
+                    if raw_assessment in ('correct', 'right', 'true', 'yes'):
+                        assessment = "correct"
+                    elif raw_assessment in ('wrong', 'incorrect', 'false', 'no', 'wong'):
+                        assessment = "wrong"
+                
+                if 'score' in eval_data:
+                    score = int(eval_data['score'])
+                
+                # Skip further processing if JSON was parsed successfully
+                if assessment and score is not None:
+                    return assessment, score
+        except (json.JSONDecodeError, ValueError, KeyError) as e:
+            # If JSON parsing fails, continue with text-based parsing
+            pass
+            
+        # Fall back to text-based parsing
         # Extract assessment (correct/wrong)
         assessment_line = [line for line in evaluation.split('\n') if line.startswith('Assessment:')]
         if assessment_line:
-            raw_assessment = assessment_line[0].split(':')[1].strip().lower()
-            # Handle the "WONG" case too (yes, this actually happens)
-            if raw_assessment in ("wong", "wrong"):
+            raw_text = assessment_line[0].split(':')[1].strip()
+            # Extract only alphabetic characters and convert to lowercase
+            raw_assessment = ''.join(c for c in raw_text if c.isalpha()).lower()
+            
+            # Expanded list of matching terms
+            if raw_assessment in ("wong", "wrong", "incorrect", "false", "no"):
                 assessment = "wrong"
-            elif raw_assessment == "correct":
+            elif raw_assessment in ("correct", "right", "true", "yes"):
                 assessment = "correct"
             else:
-                print(f"⚠️ Unknown assessment: '{raw_assessment}', defaulting to 'wrong'")
+                print(f"⚠️ Unknown assessment: '{raw_text}' (cleaned: '{raw_assessment}'), defaulting to 'wrong'")
                 assessment = "wrong"
         
         # Extract score
         score_line = [line for line in evaluation.split('\n') if line.startswith('Score:')]
         if score_line:
-            score = int(score_line[0].split(':')[1].strip())
+            try:
+                # Extract digits only
+                score_text = score_line[0].split(':')[1].strip()
+                score_digits = ''.join(c for c in score_text if c.isdigit())
+                if score_digits:
+                    score = int(score_digits)
+            except ValueError:
+                print(f"⚠️ Could not parse score from: '{score_line[0]}', defaulting to 0")
+                score = 0
             
         # Validate scores - use lowercase assessment
         if assessment == "wrong" and score != 0:
@@ -225,7 +270,66 @@ def parse_evaluation(evaluation):
     
     return assessment, score
 
-def process_question_attempt(test_model, evaluator_model, question_content, model_answer_content, attempt_num=1, timeout_seconds=60, system_prompt=None, thinking_start_tag=None, thinking_end_tag=None):
+def evaluate_with_double_check(evaluator1_model, evaluator2_model, user_answer, model_answer, question, max_retry=3):
+    """Evaluate an answer using two evaluators for consensus"""
+    print(f"⚖️ Double-evaluating with {evaluator1_model} and {evaluator2_model}...")
+    
+    for attempt in range(1, max_retry + 1):
+        if attempt > 1:
+            print(f"🔄 Retry #{attempt-1} for evaluation consensus...")
+            
+        # Get first evaluation
+        evaluation1 = evaluate_answer(
+            evaluator1_model,
+            user_answer,
+            model_answer,
+            question
+        )
+        assessment1, score1 = parse_evaluation(evaluation1)
+        
+        # Get second evaluation
+        evaluation2 = evaluate_answer(
+            evaluator2_model,
+            user_answer,
+            model_answer,
+            question
+        )
+        assessment2, score2 = parse_evaluation(evaluation2)
+        
+        # Check if assessments agree
+        if assessment1 == assessment2:
+            print(f"✅ Evaluators agree: {assessment1}")
+            # Use the highest score
+            final_score = max(score1, score2)
+            print(f"📊 Using highest score: {final_score}/5")
+            return {
+                "evaluation": f"CONSENSUS:\n{evaluation1}\n\n---SECOND EVALUATOR---\n{evaluation2}",
+                "assessment": assessment1,  # They're the same
+                "score": final_score,
+                "consensus": True
+            }
+        else:
+            print(f"⚠️ Evaluators disagree: {evaluator1_model}={assessment1}, {evaluator2_model}={assessment2}")
+            if attempt == max_retry:
+                print(f"⚠️ After {max_retry} attempts, evaluators still disagree. Using first evaluator.")
+                return {
+                    "evaluation": f"NO CONSENSUS:\n{evaluation1}\n\n---SECOND EVALUATOR---\n{evaluation2}",
+                    "assessment": assessment1,  # Fall back to first evaluator
+                    "score": score1,
+                    "consensus": False
+                }
+    
+    # Should not reach here, but just in case
+    return {
+        "evaluation": "ERROR: Evaluation loop exited unexpectedly",
+        "assessment": "wrong",
+        "score": 0,
+        "consensus": False
+    }
+
+def process_question_attempt(test_model, evaluator1_model, evaluator2_model, question_content, model_answer_content, 
+                             attempt_num=1, timeout_seconds=60, system_prompt=None, 
+                             thinking_start_tag=None, thinking_end_tag=None):
     """Process a single attempt at answering a question"""
     print(f"\n📝 {f'Attempt {attempt_num}/5' if attempt_num > 1 else 'First attempt'}")
     
@@ -241,38 +345,59 @@ def process_question_attempt(test_model, evaluator_model, question_content, mode
     else:
         print(f"\n📢 {test_model}'s answer:\n{user_answer}\n")
     
-    # Evaluate the answer - use is_evaluator=True for the evaluator model
-    print(f"⚖️ Evaluating with {evaluator_model}...")
-    evaluation = evaluate_answer(
-        evaluator_model,
-        user_answer,
-        model_answer_content,
-        question_content
-    )
-    
-    # Parse the evaluation
-    assessment, score = parse_evaluation(evaluation)
-    
     # For timeout or error responses, force "wrong" assessment
     if user_answer.startswith("[TIMEOUT ERROR:") or user_answer.startswith("[ERROR:"):
-        assessment = "wrong"
-        score = 0
         print("⚠️ Timeout or error occurred - forcing incorrect assessment")
+        return {
+            "answer": user_answer,
+            "evaluation": "[TIMEOUT/ERROR - No evaluation performed]",
+            "assessment": "wrong",
+            "score": 0,
+            "consensus": True  # Mark as consensus to avoid retries
+        }
     
-    # Display results - use lowercase assessment
-    result_emoji = "✅" if assessment == "correct" else "❌"
-    print(f"\n{result_emoji} Assessment: {assessment}")
-    print(f"🏅 Score: {score}/5 {get_difficulty_stars(score)}")
-    print(f"📊 Evaluation:\n{evaluation}")
+    # Use double evaluation if second evaluator is provided
+    if evaluator2_model:
+        result = evaluate_with_double_check(
+            evaluator1_model,
+            evaluator2_model,
+            user_answer,
+            model_answer_content,
+            question_content
+        )
+        result["answer"] = user_answer
+    else:
+        # Fall back to single evaluator if no second evaluator
+        evaluation = evaluate_answer(
+            evaluator1_model,
+            user_answer,
+            model_answer_content,
+            question_content
+        )
+        
+        # Parse the evaluation
+        assessment, score = parse_evaluation(evaluation)
+        
+        result = {
+            "answer": user_answer,
+            "evaluation": evaluation,
+            "assessment": assessment,
+            "score": score,
+            "consensus": True  # Mark as consensus since only one evaluator
+        }
     
-    return {
-        "answer": user_answer,
-        "evaluation": evaluation,
-        "assessment": assessment,  # Already lowercase from parse_evaluation
-        "score": score
-    }
+    # Display results
+    result_emoji = "✅" if result["assessment"] == "correct" else "❌"
+    consensus_icon = "🤝" if result.get("consensus", False) else "⚔️"
+    print(f"\n{result_emoji} Assessment: {result['assessment']} {consensus_icon}")
+    print(f"🏅 Score: {result['score']}/5 {get_difficulty_stars(result['score'])}")
+    print(f"📊 Evaluation summary:\n{result['evaluation'].split('\n')[0]}...")
+    
+    return result
 
-def handle_question(test_model, evaluator_model, question_data, q_index, total_questions, max_attempts=5, timeout_seconds=60, system_prompt=None, thinking_start_tag=None, thinking_end_tag=None):
+def handle_question(test_model, evaluator1_model, evaluator2_model, question_data, q_index, total_questions, 
+                   max_attempts=5, timeout_seconds=60, system_prompt=None, 
+                   thinking_start_tag=None, thinking_end_tag=None):
     """Handle the full process of asking and evaluating a question, with retries if needed"""
     question_path = question_data["question_path"]
     answer_path = question_data["answer_path"]
@@ -310,7 +435,8 @@ def handle_question(test_model, evaluator_model, question_data, q_index, total_q
         # Process the attempt
         result = process_question_attempt(
             test_model, 
-            evaluator_model, 
+            evaluator1_model, 
+            evaluator2_model, 
             question_content, 
             model_answer_content,
             attempt,
@@ -375,12 +501,15 @@ def handle_question(test_model, evaluator_model, question_data, q_index, total_q
     
     return final_result
 
-def run_test(test_model, evaluator_model, max_attempts=5, timeout_seconds=60, system_prompt=None, display_name=None, thinking_start_tag=None, thinking_end_tag=None):
+def run_test(test_model, evaluator1_model, evaluator2_model=None, max_attempts=5, timeout_seconds=60, 
+             system_prompt=None, display_name=None, thinking_start_tag=None, thinking_end_tag=None):
     """Run the test with questions from json file"""
     questions = load_questions("questions.json")
     results = []
     
-    print(f"\n🧠 Running test with {test_model}, evaluated by {evaluator_model} 🧠\n")
+    print(f"\n🧠 Running test with {test_model}, evaluated by {evaluator1_model}" + 
+          (f" and {evaluator2_model}" if evaluator2_model else "") + " 🧠\n")
+    
     if thinking_start_tag and thinking_end_tag:
         print(f"💭 Will strip thinking sections between '{thinking_start_tag}' and '{thinking_end_tag}'")
     
@@ -398,7 +527,8 @@ def run_test(test_model, evaluator_model, max_attempts=5, timeout_seconds=60, sy
         # Handle the question (ask, evaluate, retry if needed)
         result = handle_question(
             test_model, 
-            evaluator_model, 
+            evaluator1_model,
+            evaluator2_model, 
             question_data, 
             i, 
             len(questions),
@@ -434,19 +564,21 @@ def run_test(test_model, evaluator_model, max_attempts=5, timeout_seconds=60, sy
     metadata = {
         "test_model": test_model,  # Keep original model name
         "display_name": model_name,  # Add display name
-        "evaluator_model": evaluator_model,
+        "evaluator1_model": evaluator1_model,
+        "evaluator2_model": evaluator2_model,
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "total_score": total_score,  # Now defined above
-        "max_possible_score": max_score,  # Now defined above
-        "score_percentage": percentage,  # Now defined above
-        "correct_answers": correct_count,  # Now defined above
+        "total_score": total_score,
+        "max_possible_score": max_score,
+        "score_percentage": percentage,
+        "correct_answers": correct_count,
         "total_questions": len(questions),
-        "correct_percentage": correct_percentage,  # Now defined above
-        "total_attempts": total_attempts,  # Now defined above
+        "correct_percentage": correct_percentage,
+        "total_attempts": total_attempts,
         "avg_attempts": total_attempts / len(questions),
         "max_attempts_allowed": max_attempts,
         "system_prompt": system_prompt,  # Store system prompt used
-        "thinking_tags_used": bool(thinking_start_tag and thinking_end_tag)  # Record if thinking tags were used
+        "thinking_tags_used": bool(thinking_start_tag and thinking_end_tag),  # Record if thinking tags were used
+        "dual_evaluator_used": bool(evaluator2_model)  # Record if dual evaluation was used
     }
     
     return results, metadata, model_name
@@ -454,7 +586,8 @@ def run_test(test_model, evaluator_model, max_attempts=5, timeout_seconds=60, sy
 def main():
     parser = argparse.ArgumentParser(description='Run Basic Logic Test for AI')
     parser.add_argument('test_models', nargs='+', help='One or more models to test (e.g. llama3 gemma3 phi3)')
-    parser.add_argument('--evaluator', '-e', default='gemma3:27b', help='The model to evaluate answers (default: gemma3:27b)')
+    parser.add_argument('--evaluator', '-e', default='deepseek-r1-jp:14b-8k', help='Primary evaluator model (default: deepseek-r1-jp:14b-8k)')
+    parser.add_argument('--evaluator2', '-e2', default="mistral-small",help='Second evaluator model for consensus (default: mistral-small)')
     parser.add_argument('--no-table', '-n', action='store_true', help='Skip generating results table')
     parser.add_argument('--max-attempts', '-m', type=int, default=5, help='Maximum attempts per question (default: 5)')
     parser.add_argument('--timeout', '-t', type=int, default=60, help='Timeout in seconds for each model response (default: 60)')
@@ -464,17 +597,28 @@ def main():
     parser.add_argument('--thinking-end-tag', '-te', help='Tag marking the end of thinking section to remove')
     args = parser.parse_args()
     
-    # Check if evaluator model exists, pull if not
+    # Check if primary evaluator model exists, pull if not
     if not check_model_exists(args.evaluator):
         pull_model_with_progress(args.evaluator)
     else:
         print(f"✓ {args.evaluator} model already exists")
+    
+    # Check if secondary evaluator model exists (if provided), pull if not
+    if args.evaluator2:
+        if not check_model_exists(args.evaluator2):
+            pull_model_with_progress(args.evaluator2)
+        else:
+            print(f"✓ {args.evaluator2} model already exists")
     
     # Process each test model sequentially
     for test_model in args.test_models:
         print(f"\n\n{'='*80}")
         model_display = args.display_name if args.display_name else test_model
         print(f"🚀 Starting test for model: {model_display} ({test_model})")
+        
+        if args.evaluator2:
+            print(f"⚖️ Using dual evaluator mode: {args.evaluator} + {args.evaluator2}")
+            
         if args.system_prompt:
             print(f"📝 Using system prompt: {args.system_prompt}")
         if args.thinking_start_tag and args.thinking_end_tag:
@@ -490,7 +634,8 @@ def main():
         # Run test for current model (pass all parameters)
         results, metadata, model_name = run_test(
             test_model, 
-            args.evaluator, 
+            args.evaluator,
+            args.evaluator2,
             args.max_attempts, 
             args.timeout, 
             args.system_prompt, 
@@ -534,16 +679,9 @@ def main():
                     f.write(table_content)
                 print("✅ Results table saved to results_table.md")
                 
-                # Extract just the table part for README
-                table_lines = table_content.strip().split("\n")
-                section_start = next((i for i, line in enumerate(table_lines) if line.startswith("| Model |")), 0)
-                if section_start > 0:
-                    section_start -= 1  # Include the header line
-                results_section = "\n".join(table_lines[section_start:])
-                
                 # Update README with table content
                 if update_readme_with_table:
-                    if update_readme_with_table(results_section):
+                    if update_readme_with_table(table_content):
                         print("✅ README.md updated with latest results")
                     else:
                         print("❌ Failed to update README.md")

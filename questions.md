@@ -1,6 +1,6 @@
 # 🧠 AI Logical Reasoning Test Questions & Answers 🧠
 
-Generated on: 2025-03-16 07:39:55
+Generated on: 2025-03-18 04:44:27
 
 This document contains all questions and reference answers used in the test.
 
@@ -65,6 +65,7 @@ This document contains all questions and reference answers used in the test.
 
   - Because the it has the least assumptions compared to other statements.
   - This is a version of the Linda problem, which is a famous example of the conjunction fallacy.
+  - Only [c] is the correct answer, more than one answer is considered incorrect.
 
 ---
 
@@ -91,7 +92,9 @@ This document contains all questions and reference answers used in the test.
 
 ### ✅ Expected Answer
 
-- The revenue for 2025 appears significantly lower compared to previous years because 2025 data is not complete yet as it stated in the question that the data is up to "current year 2025". The answer should be considered as correct if it mentions that the data is incomplete for 2025 as one of the plausible reasons for the lower revenue.
+- The revenue for 2025 appears significantly lower compared to previous years because 2025 data is not complete yet, as it stated in the question that "the data is up to current year 2025".
+- NOTE: Only if the answer mentioned "2025 data is not complete" as one of the plausible reasons, this answer can be considered as correct.
+- Any other reasons are not required to be mentioned for the answer to be considered correct, but still welcome as long as they are reasonable and related to the question.
 
 ---
 
@@ -131,7 +134,8 @@ This document contains all questions and reference answers used in the test.
     - "Healthcare workers and office workers having higher survey responses might be due to the connection by alumni or friends of the medical student who conducted the survey."
     - "There are very few factory workers in Hong Kong, which might explain the low number of responses from factory workers."
     - Other insights or information about data bias.
-    - NOTE: Only if the main point of "lack of percentage information" is provided, other reasonable insights then can also be accepted.
+
+- NOTE: Only if the main point of "lack of percentage information" or "lack of total number of participants in each job type" is provided in the answer, the answer is considered correct, any other insights are just considered as extra insights.
 
 ---
 
@@ -163,6 +167,7 @@ This document contains all questions and reference answers used in the test.
 - b. There are politicians that are not musicians.
 
     - Drawing a list of all possible venn diagrams based on the premises, we can see that there are politicians that are not musicians and all other statements are not necessarily true.
+    - Only [b] is the correct answer, more than one answer is considered incorrect.
 
 ---
 
@@ -188,6 +193,7 @@ This document contains all questions and reference answers used in the test.
 
     - All integer numbers have at least two factors except the number 1: 1 and the number itself, and 1 also have a single factor of 1.
     - All other answers are not necessarily true, they depend on the assumption that the sequence is following a pattern, which did not state in the question.
+    - Only [d] is the correct answer, more than one answer is considered incorrect.
 
 ---
 
